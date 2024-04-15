@@ -27,14 +27,12 @@ class NetworkDataCollector:
                 writer.writeheader()
 
     def get_fieldnames(self):
-        # Retourne la liste des noms des champs pour l'en-tête CSV
         return ['timestamp', 'src_ip', 'dst_ip', 'src_port', 'dst_port',
                 'protocol', 'length', 'icmp_type', 'tcp_flags',
-                'entropy_src_ip', 'entropy_dst_ip', 'window_tx']
+                'entropy_src_ip', 'entropy_dst_ip', 'window_tx', "type_attack"]
 
     def process_packet(self, packet):
         current_time = datetime.datetime.now()
-
         if IP not in packet:
             return
 
@@ -43,6 +41,7 @@ class NetworkDataCollector:
         length = len(packet)
         protocol = 'Other'
         src_port = dst_port = icmp_type = tcp_flags = None
+        attack_type = {192: 'ddos', 193: 'port_scan', 194: 'ping_flood'}.get(packet[IP].tos, 'normal')
 
         if TCP in packet:
             src_port = packet[TCP].sport
@@ -79,7 +78,8 @@ class NetworkDataCollector:
             'tcp_flags': tcp_flags,
             'entropy_src_ip': entropy_src,
             'entropy_dst_ip': entropy_dst,
-            'window_tx': total_tx
+            'window_tx': total_tx,
+            'type_attack': attack_type
         }
 
         # Sauvegarder immédiatement le nouveau paquet dans le fichier CSV
@@ -90,8 +90,6 @@ class NetworkDataCollector:
     def start_capture(self):
         sniff(prn=self.process_packet, store=False)
 
-    # La méthode save_data n'est plus nécessaire dans ce contexte, mais vous pouvez la garder pour des tâches de nettoyage si besoin
-
 # Utilisation dans une boucle infinie
 collector = NetworkDataCollector()
 
@@ -101,4 +99,3 @@ try:
 except KeyboardInterrupt:
     print("Interruption détectée, arrêt...")
     # Ici, vous pouvez appeler collector.save_data() si vous avez besoin de sauvegarder les dernières données ou effectuer un nettoyage.
-
