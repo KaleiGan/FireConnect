@@ -3,8 +3,27 @@ from scapy.all import sniff, IP, TCP, UDP, ICMP
 import datetime
 import numpy as np
 from collections import Counter
+import threading
 import csv
 import os
+import asyncio
+import websockets
+
+current_attack_type = "Normal"  # Variable globale pour suivre le type d'attaque actuel
+
+async def update_attack_type(websocket, path):
+    global current_attack_type
+    async for message in websocket:
+        if '_end' in message:
+            current_attack_type = "Normal"
+        else:
+            current_attack_type = message.replace('_start', '')
+        print(f"Updated attack type to: {current_attack_type}")
+
+async def start_websocket_server():
+    async with websockets.serve(update_attack_type, "localhost", 8765):
+        await asyncio.Future()  # Run indefinitely
+
 
 class NetworkDataCollector:
     def __init__(self, window_size=300, filename='network_data.csv'):
@@ -27,12 +46,14 @@ class NetworkDataCollector:
                 writer.writeheader()
 
     def get_fieldnames(self):
+        # Retourne la liste des noms des champs pour l'en-tête CSV
         return ['timestamp', 'src_ip', 'dst_ip', 'src_port', 'dst_port',
                 'protocol', 'length', 'icmp_type', 'tcp_flags',
-                'entropy_src_ip', 'entropy_dst_ip', 'window_tx', "type_attack"]
+                'entropy_src_ip', 'entropy_dst_ip', 'window_tx', 'type_attack']
 
     def process_packet(self, packet):
         current_time = datetime.datetime.now()
+
         if IP not in packet:
             return
 
@@ -41,7 +62,6 @@ class NetworkDataCollector:
         length = len(packet)
         protocol = 'Other'
         src_port = dst_port = icmp_type = tcp_flags = None
-        attack_type = {192: 'ddos', 193: 'port_scan', 194: 'ping_flood'}.get(packet[IP].tos, 'normal')
 
         if TCP in packet:
             src_port = packet[TCP].sport
@@ -55,6 +75,7 @@ class NetworkDataCollector:
         elif ICMP in packet:
             protocol = 'ICMP'
             icmp_type = packet[ICMP].type
+
 
         self.window_packets.append((current_time, src_ip, dst_ip, length))
         self.window_packets = [(t, s, d, l) for (t, s, d, l) in self.window_packets if
@@ -79,7 +100,8 @@ class NetworkDataCollector:
             'entropy_src_ip': entropy_src,
             'entropy_dst_ip': entropy_dst,
             'window_tx': total_tx,
-            'type_attack': attack_type
+            'type_attack': current_attack_type  # Ajouter le type d'attaque actuel
+
         }
 
         # Sauvegarder immédiatement le nouveau paquet dans le fichier CSV
@@ -90,12 +112,29 @@ class NetworkDataCollector:
     def start_capture(self):
         sniff(prn=self.process_packet, store=False)
 
-# Utilisation dans une boucle infinie
-collector = NetworkDataCollector()
+    # La méthode save_data n'est plus nécessaire dans ce contexte, mais vous pouvez la garder pour des tâches de nettoyage si besoin
 
-try:
-    while True:
-        collector.start_capture()
-except KeyboardInterrupt:
-    print("Interruption détectée, arrêt...")
-    # Ici, vous pouvez appeler collector.save_data() si vous avez besoin de sauvegarder les dernières données ou effectuer un nettoyage.
+# Fonction pour démarrer la capture dans un thread séparé
+def start_sniffing(collector):
+    collector.start_capture()
+
+# Fonction principale pour démarrer le serveur et la capture
+def main():
+    collector = NetworkDataCollector()
+    thread = threading.Thread(target=start_sniffing, args=(collector,))
+    thread.start()  # Démarrer la capture dans un thread séparé
+
+    loop = asyncio.get_event_loop()
+    ws_server = loop.create_task(start_websocket_server())
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        print("Shutting down.")
+    finally:
+        ws_server.cancel()
+        loop.run_until_complete(ws_server)
+        loop.close()
+        thread.join()  # Assurez-vous que le thread de capture termine proprement
+
+if __name__ == "__main__":
+    main()
