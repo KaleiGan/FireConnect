@@ -7,7 +7,6 @@ from collections import Counter
 import threading
 import csv
 import os
-import asyncio
 import paho.mqtt.client as mqtt
 
 
@@ -49,18 +48,36 @@ class NetworkDataCollector:
         entropy = -sum(p * np.log2(p) for p in probabilities if p > 0)
         return entropy
 
+    def packet_statistics(self, packets):
+        if not packets:
+            return 0, 0, 0  # median, mean, std deviation
+        lengths = [length for (_, _, _, length) in packets]
+        median = np.median(lengths)
+        mean = np.mean(lengths)
+        std = np.std(lengths)
+        return median, mean, std
+
     def ensure_file(self):
-        # Crée le fichier CSV avec l'en-tête s'il n'existe pas
         if not os.path.isfile(self.filename):
             with open(self.filename, 'w', newline='') as file:
                 writer = csv.DictWriter(file, fieldnames=self.get_fieldnames())
                 writer.writeheader()
 
     def get_fieldnames(self):
-        # Retourne la liste des noms des champs pour l'en-tête CSV
         return ['timestamp', 'src_ip', 'dst_ip', 'src_port', 'dst_port',
-                'protocol', 'length', 'icmp_type', 'tcp_flags',
-                'entropy_src_ip', 'entropy_dst_ip', 'window_tx', 'type_attack']
+                'protocol', 'length', 'icmp_type',
+                'entropy_src_ip', 'entropy_dst_ip', 'window_tx', 'median_packet_size',
+                'mean_packet_size', 'std_dev_packet_size', 'packet_frequency', 'type_attack']
+
+    def calculate_packet_frequency(self):
+        if not self.window_packets:
+            return 0
+        start_time = min(t for (t, _, _, _) in self.window_packets)
+        end_time = max(t for (t, _, _, _) in self.window_packets)
+        duration = (end_time - start_time).total_seconds()
+        if duration > 0:
+            return len(self.window_packets) / duration
+        return 0
 
     def process_packet(self, packet):
         current_time = datetime.datetime.now()
@@ -68,11 +85,12 @@ class NetworkDataCollector:
         if IP not in packet:
             return
 
-        src_ip = packet[IP].src if IP in packet else None
-        dst_ip = packet[IP].dst if IP in packet else None
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
         length = len(packet)
         protocol = 'Other'
-        src_port = dst_port = icmp_type = tcp_flags = None
+        icmp_type = 'N/A'  # Valeur par défaut pour les paquets non-ICMP
+        src_port = dst_port = None
 
         if TCP in packet:
             src_port = packet[TCP].sport
@@ -87,7 +105,6 @@ class NetworkDataCollector:
             protocol = 'ICMP'
             icmp_type = packet[ICMP].type
 
-
         self.window_packets.append((current_time, src_ip, dst_ip, length))
         self.window_packets = [(t, s, d, l) for (t, s, d, l) in self.window_packets if
                                (current_time - t).seconds < self.window_size]
@@ -97,6 +114,8 @@ class NetworkDataCollector:
         total_tx = sum(l for (_, _, _, l) in self.window_packets)
         entropy_src = self.calculate_entropy(src_ips)
         entropy_dst = self.calculate_entropy(dst_ips)
+        median_packet_size, mean_packet_size, std_dev_packet_size = self.packet_statistics(self.window_packets)
+        packet_frequency = self.calculate_packet_frequency()
 
         new_row = {
             'timestamp': current_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -107,12 +126,14 @@ class NetworkDataCollector:
             'protocol': protocol,
             'length': length,
             'icmp_type': icmp_type,
-            'tcp_flags': tcp_flags,
             'entropy_src_ip': entropy_src,
             'entropy_dst_ip': entropy_dst,
             'window_tx': total_tx,
+            'median_packet_size': median_packet_size,
+            'mean_packet_size': mean_packet_size,
+            'std_dev_packet_size': std_dev_packet_size,
+            'packet_frequency' : packet_frequency,
             'type_attack': current_attack_type  # Ajouter le type d'attaque actuel
-
         }
 
         # Sauvegarder immédiatement le nouveau paquet dans le fichier CSV
@@ -122,12 +143,6 @@ class NetworkDataCollector:
 
     def start_capture(self):
         sniff(prn=self.process_packet, store=False)
-
-    # La méthode save_data n'est plus nécessaire dans ce contexte, mais vous pouvez la garder pour des tâches de nettoyage si besoin
-
-# Fonction pour démarrer la capture dans un thread séparé
-def start_sniffing(collector):
-    collector.start_capture()
 
 # Fonction principale pour démarrer le serveur et la capture
 def main():
