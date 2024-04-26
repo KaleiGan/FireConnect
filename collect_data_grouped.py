@@ -10,11 +10,34 @@ import paho.mqtt.client as mqtt
 from class_functions import calculate_entropy  # Assurez-vous que cette fonction existe et est correctement importée
 
 current_attack_type = "Normal"
+active_attacks = Counter()  # Utilise un compteur pour suivre les types d'attaques actifs
+is_connected = False
 
 
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code " + str(rc))
-    client.subscribe("attack/type")
+def on_connect(client, userdata, flags, rc, properties=None):
+    global is_connected
+    if rc == 0:
+        is_connected = True
+        print("Connecté au broker ! " + str(rc))
+        client.subscribe("attack/type")
+    else:
+        print("Connection failed with result code " + str(rc))
+        is_connected = False
+
+def on_disconnect(client, userdata, flags, rc, properties=None):
+    global is_connected
+    is_connected = False
+    print("Disconnected from MQTT broker.")
+
+def manage_connection(client):
+    while True:
+        if not is_connected:
+            print("Attempting to reconnect...")
+            try:
+                client.reconnect()
+            except Exception as e:
+                print(f"Reconnect failed: {e}")
+        time.sleep(10)  # Vérifie l'état de la connexion toutes les 10 secondes
 
 
 def on_message(client, userdata, msg):
@@ -24,16 +47,20 @@ def on_message(client, userdata, msg):
     attack_type, attack_id, status = attack_info
 
     if 'start' in status:
-        current_attack_type = attack_type
-    elif 'end' in status and attack_type == current_attack_type:
+        active_attacks[attack_id] = attack_type  # Enregistrer le type d'attaque sous son UUID
+    elif 'end' in status and attack_id in active_attacks:
+        del active_attacks[attack_id]  # Supprimer l'attaque de la liste active
         time.sleep(2)
-        current_attack_type = "Normal"
 
-    print(f"Updated attack type to: {current_attack_type}")
+    # Mettre à jour la chaîne des types d'attaques actifs basée sur les UUID uniques
+    current_attack_types = set(active_attacks.values())
+    current_attack_type = ', '.join(current_attack_types) if current_attack_types else "Normal"
+    print(f"Updated attack types to: {current_attack_type}")
+    print(f"{datetime.datetime.now().hour}:{datetime.datetime.now().minute}")
 
 
 class NetworkDataCollector:
-    def __init__(self, window_size=300, filename='network_data_grouped.csv'):
+    def __init__(self, window_size=4, filename='network_data_grouped.csv'):
         self.window_size = window_size
         self.window_packets = []
         self.filename = filename
@@ -155,24 +182,23 @@ class NetworkDataCollector:
 
 
 def main():
-    collector = NetworkDataCollector(window_size=5, filename='network_data_grouped.csv')
+    collector = NetworkDataCollector(window_size=4, filename='network_data_grouped.csv')
     thread = threading.Thread(target=collector.start_capture)
     thread.start()
-
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+    
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
+    client.on_disconnect = on_disconnect
 
     try:
         client.connect("192.168.1.18", 1883)
-        client.loop_forever()
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally:
-        client.loop_stop()
-        client.disconnect()
-        thread.join()
-
+        
+    thread2 = threading.Thread(target=manage_connection, args=(client,))
+    thread2.start()
+    client.loop_forever()
 
 if __name__ == "__main__":
     main()
