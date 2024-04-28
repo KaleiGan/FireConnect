@@ -79,7 +79,7 @@ class NetworkDataCollector:
     def get_fieldnames(self):
         return ['timestamp', 'entropy_src_ip', 'entropy_dst_ip', 'window_tx',
                 'median_packet_size', 'mean_packet_size', 'std_dev_packet_size',
-                'packet_frequency', 'tcp_count', 'udp_count' , 'icmp_count' , 'type_attack']
+                'packet_frequency', 'unique_ip', 'tcp_count', 'udp_count', 'icmp_count', 'type_attack']
 
     def calculate_in_out_ratio(self):
         # Calcul du ratio des paquets entrants et sortants
@@ -87,11 +87,9 @@ class NetworkDataCollector:
         output_packets = sum(1 for (_, _, dst, _) in self.window_packets if dst == 'local_IP')
         return input_packets / output_packets if output_packets else 0
 
-    def calculate_unique_ips(self):
-        # Calcul des IP sources et destinations uniques
-        src_ips = set(src for (_, src, _, _) in self.window_packets)
-        dst_ips = set(dst for (_, _, dst, _) in self.window_packets)
-        return len(src_ips), len(dst_ips)
+    def unique_ip_count(self):
+        src_ips = [src for (_, src, _, _) in self.window_packets]
+        return len(src_ips)
 
     def calculate_active_window_duration(self):
         # Calcul de la durée d'activité réelle de la fenêtre
@@ -123,6 +121,7 @@ class NetworkDataCollector:
             'median_packet_size': median_packet_size,
             'mean_packet_size': mean_packet_size,
             'std_dev_packet_size': std_dev_packet_size,
+            'unique_ip': self.unique_ip_count(),
             'packet_frequency': packet_frequency,
             'tcp_count': self.tcp_count,
             'udp_count': self.udp_count,
@@ -192,7 +191,7 @@ def main():
     client.on_disconnect = on_disconnect
 
     try:
-        client.connect("192.168.1.18", 1883)
+        client.connect("192.168.3.109", 1883)
     except Exception as e:
         print(f"An error occurred: {e}")
         
