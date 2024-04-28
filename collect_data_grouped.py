@@ -181,7 +181,7 @@ class NetworkDataCollector:
 
 
 def main():
-    collector = NetworkDataCollector(window_size=4, filename='network_data_grouped.csv')
+    collector = NetworkDataCollector(window_size=5, filename='network_data_grouped.csv')
     thread = threading.Thread(target=collector.start_capture)
     thread.start()
     
