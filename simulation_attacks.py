@@ -40,7 +40,7 @@ def simulate_attack(target_ip):
     send_attack_notification(attack_type, attack_id, is_start=True)
 
     if attack_type == 'ddos':
-        nombre_paquets = random.randint(500, 5000)
+        nombre_paquets = random.randint(100, 3000)
         print(nombre_paquets)
         for _ in range(nombre_paquets):
             spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
@@ -57,7 +57,7 @@ def simulate_attack(target_ip):
     elif attack_type == "mitm":
         random_number = random.randint(1, 253)
         victim_ip = f"192.168.3.(met l'ip du client ACTUEL)"
-        nombre_paquets = random.randint(1000, 5000)
+        nombre_paquets = random.randint(100, 2000)
         for _ in range(nombre_paquets):
             spoofed_ip = f"{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
             # Falsification des adresses IP pour imiter l'IP de la victime
@@ -71,7 +71,7 @@ def simulate_attack(target_ip):
 
     elif attack_type == 'udp_flood':
         print("Simulating UDP flood attack")
-        number_of_packets = random.randint(500, 5000)  # Définir le nombre de paquets à envoyer
+        number_of_packets = random.randint(300, 2000)  # Définir le nombre de paquets à envoyer
         for _ in range(number_of_packets):
             packet = IP(dst=target_ip) / UDP(dport=random.randint(1, 65535))
             send(packet, verbose=0)
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     try:
         while True:
             simulate_attack(target_ip)
-            sleep_time = random.randint(25, 120)
+            sleep_time = random.randint(40, 240)
             print(f"Waiting {sleep_time} seconds before next attack")
             sleep(sleep_time)
     except KeyboardInterrupt:
