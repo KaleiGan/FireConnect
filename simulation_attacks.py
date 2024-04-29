@@ -84,7 +84,7 @@ if __name__ == "__main__":
     try:
         while True:
             simulate_attack(target_ip)
-            sleep_time = random.randint(40, 240)
+            sleep_time = random.randint(60, 400)
             print(f"Waiting {sleep_time} seconds before next attack")
             sleep(sleep_time)
     except KeyboardInterrupt:
