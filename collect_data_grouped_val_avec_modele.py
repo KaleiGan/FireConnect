@@ -19,8 +19,8 @@ active_attacks = Counter()  # Compteur pour suivre les attaques actives
 is_connected = False  # Variable de statut de connexion
 
 # Charger les objets pour utilisation du modele
-model_path = 'val/random_forest_model_12k.pkl'
-encoder_path = 'val/label_encoder.joblib'
+model_path = 'val/random_forest_model_val_12k.pkl'
+encoder_path = 'val/label_encoder.pkl'
 rf_model = joblib.load(model_path)
 encoder = joblib.load(encoder_path)
 
@@ -97,8 +97,8 @@ def on_message(client, userdata, msg):
 
     current_attack_types = set(active_attacks.values())
     current_attack_type = ', '.join(current_attack_types) if current_attack_types else "Normal"
-    print(f"Updated attack types to: {current_attack_type}")
-    print(f"{datetime.datetime.now().hour}:{datetime.datetime.now().minute}")
+   # print(f"Updated attack types to: {current_attack_type}")
+   # print(f"{datetime.datetime.now().hour}:{datetime.datetime.now().minute}")
 
 class NetworkDataCollector:
     # Classe pour collecter et analyser les données réseau
@@ -177,6 +177,11 @@ class NetworkDataCollector:
         prediction = rf_model.predict(features)
         # Récupérer le nom de l'attaque prédit
         attack_type = encoder.inverse_transform(prediction)[0]
+        
+        # Imprimer la prédiction numérique
+        print("Raw Prediction:", prediction)  
+        # Logging pour diagnostic
+        print(f"Predicted: {attack_type}, Features: {features.iloc[0].to_dict()}")
         
         # Gérer les adresses IP en fonction du type d'attaque détecté
         if attack_type == "Normal":
