@@ -1,6 +1,7 @@
 import time
 import datetime
 import numpy as np
+import pandas as pd
 from collections import Counter
 import threading
 import csv
@@ -18,7 +19,7 @@ active_attacks = Counter()  # Compteur pour suivre les attaques actives
 is_connected = False  # Variable de statut de connexion
 
 # Charger les objets pour utilisation du modele
-model_path = 'val/random_forest_model.pkl'
+model_path = 'val/random_forest_model_10k.pkl'
 scaler_path = 'val/scaler.pkl'
 encoder_path = 'val/encoder.pkl'
 rf_model = joblib.load(model_path)
@@ -103,7 +104,7 @@ def on_message(client, userdata, msg):
 
 class NetworkDataCollector:
     # Classe pour collecter et analyser les données réseau
-    def __init__(self, window_size=4, filename='network_data_grouped.csv'):
+    def __init__(self, window_size=4, filename='network_data_grouped_model.csv'):
         self.window_size = window_size  # Taille de la fenêtre temporelle pour l'analyse
         self.window_packets = []  # Stocke les paquets dans la fenêtre actuelle
         self.filename = filename  # Nom du fichier pour stocker les données
@@ -161,9 +162,12 @@ class NetworkDataCollector:
         
         # Prépareration des données pour le modèle
         features = np.array([entropy_src, entropy_dst, total_tx, median_packet_size, mean_packet_size, std_dev_packet_size, packet_frequency, self.unique_ip_count(), self.tcp_count, self.udp_count, self.icmp_count]).reshape(1, -1)
-        features_scaled = scaler.transform(features)
+        feature_names = ['entropy_src_ip', 'entropy_dst_ip', 'window_tx', 'median_packet_size', 'mean_packet_size', 'std_dev_packet_size', 'packet_frequency', 'unique_ip_count', 'tcp_count', 'udp_count', 'icmp_count']
+        # Conversion des features en DataFrame
+        features_df = pd.DataFrame(features, columns=feature_names)
+        features_scaled = scaler.transform(features_df)
+        attack_type_encoded = rf_model.predict(features_scaled)
         
-        attack_type_encoded = rf_model.predict(features_scaled)[0]
         attack_type = encoder.inverse_transform([attack_type_encoded])[0]
         
         # Gérer les adresses IP en fonction du type d'attaque détecté
@@ -249,7 +253,7 @@ class NetworkDataCollector:
     pass
 
 def main():
-    collector = NetworkDataCollector(window_size=5, filename='network_data_grouped.csv')
+    collector = NetworkDataCollector(window_size=5, filename='network_data_grouped_model.csv')
     thread = threading.Thread(target=collector.start_capture)
     thread.start()
     
