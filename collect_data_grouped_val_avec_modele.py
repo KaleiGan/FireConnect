@@ -19,11 +19,9 @@ active_attacks = Counter()  # Compteur pour suivre les attaques actives
 is_connected = False  # Variable de statut de connexion
 
 # Charger les objets pour utilisation du modele
-model_path = 'val/random_forest_model_10k.pkl'
-scaler_path = 'val/scaler.pkl'
-encoder_path = 'val/encoder.pkl'
+model_path = 'val/random_forest_model_12k.pkl'
+encoder_path = 'val/label_encoder.joblib'
 rf_model = joblib.load(model_path)
-scaler = joblib.load(scaler_path)
 encoder = joblib.load(encoder_path)
 
 # Méthode évenement pour la connexion au broker MQTT
@@ -159,16 +157,26 @@ class NetworkDataCollector:
         entropy_dst = calculate_entropy(dst_ips)
         median_packet_size, mean_packet_size, std_dev_packet_size = self.packet_statistics(self.window_packets)
         packet_frequency = self.calculate_packet_frequency()
-        
-        # Prépareration des données pour le modèle
-        features = np.array([entropy_src, entropy_dst, total_tx, median_packet_size, mean_packet_size, std_dev_packet_size, packet_frequency, self.unique_ip_count(), self.tcp_count, self.udp_count, self.icmp_count]).reshape(1, -1)
-        feature_names = ['entropy_src_ip', 'entropy_dst_ip', 'window_tx', 'median_packet_size', 'mean_packet_size', 'std_dev_packet_size', 'packet_frequency', 'unique_ip_count', 'tcp_count', 'udp_count', 'icmp_count']
-        # Conversion des features en DataFrame
-        features_df = pd.DataFrame(features, columns=feature_names)
-        features_scaled = scaler.transform(features_df)
-        attack_type_encoded = rf_model.predict(features_scaled)
-        
-        attack_type = encoder.inverse_transform([attack_type_encoded])[0]
+        unique_ips = self.unique_ip_count()
+
+        # Création d'une matrice de caractéristiques pour la prédiction
+        features = pd.DataFrame([{
+            'entropy_src_ip': entropy_src,
+            'entropy_dst_ip': entropy_dst,
+            'window_tx': total_tx,
+            'median_packet_size': median_packet_size,
+            'mean_packet_size': mean_packet_size,
+            'std_dev_packet_size': std_dev_packet_size,
+            'packet_frequency': packet_frequency,
+            'unique_ip': unique_ips,
+            'tcp_count': self.tcp_count,
+            'udp_count': self.udp_count,
+            'icmp_count': self.icmp_count
+        }])
+        # Prédiction
+        prediction = rf_model.predict(features)
+        # Récupérer le nom de l'attaque prédit
+        attack_type = encoder.inverse_transform(prediction)[0]
         
         # Gérer les adresses IP en fonction du type d'attaque détecté
         if attack_type == "Normal":
@@ -190,7 +198,7 @@ class NetworkDataCollector:
             'median_packet_size': median_packet_size,
             'mean_packet_size': mean_packet_size,
             'std_dev_packet_size': std_dev_packet_size,
-            'unique_ip': self.unique_ip_count(),
+            'unique_ip': unique_ips,
             'packet_frequency': packet_frequency,
             'tcp_count': self.tcp_count,
             'udp_count': self.udp_count,
